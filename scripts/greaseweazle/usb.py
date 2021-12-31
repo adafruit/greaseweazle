@@ -7,6 +7,7 @@
 
 import struct
 import itertools as it
+import logging
 from greaseweazle import version
 from greaseweazle import error
 from greaseweazle.flux import Flux
@@ -194,6 +195,7 @@ class Unit:
     ## reset:
     ## Resets communications with Greaseweazle.
     def reset(self):
+        logging.debug("Resetting USB")
         self.ser.reset_output_buffer()
         self.ser.baudrate = ControlCmd.ClearComms
         self.ser.baudrate = ControlCmd.Normal
@@ -201,13 +203,20 @@ class Unit:
         self.ser.close()
         self.ser.open()
 
+    ## _ser_read:
+    ## A light wrapper that will make it easier to debug serial reads
+    def _ser_read(self, n):
+        reply = self.ser.read(n)
+        logging.debug("Serial read: %s " % [hex(x) for x in reply])
+        return reply
 
     ## _send_cmd:
     ## Send given command byte sequence to Greaseweazle.
     ## Raise a CmdError if command fails.
     def _send_cmd(self, cmd):
+        logging.debug("Send cmd: %s " % [hex(x) for x in cmd])
         self.ser.write(cmd)
-        (c,r) = struct.unpack("2B", self.ser.read(2))
+        (c,r) = struct.unpack("2B", self._ser_read(2))
         error.check(c == cmd[0], "Command returned garbage (%02x != %02x)"
                     % (c, cmd[0]))
         if r != 0:
