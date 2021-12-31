@@ -40,6 +40,11 @@ try:
 except ImportError:
     missing_modules.append("requests")
 
+try:
+    import logging
+except ImportError:
+    missing_modules.append("logging")
+    
 if missing_modules:
     print("""\
 ** Missing Python modules: %s
@@ -60,6 +65,8 @@ actions = [ 'info',
             'reset',
             'bandwidth' ]
 argv = sys.argv
+
+logging.basicConfig(level=logging.DEBUG)
 
 def usage():
     print("Usage: %s [--time] [action] [-h] ..." % (argv[0]))
