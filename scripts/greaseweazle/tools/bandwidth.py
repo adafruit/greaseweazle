@@ -32,7 +32,7 @@ def measure_bandwidth(usb, args):
     print("%19s%-7s/   %-7s/   %-7s" % ("", "Min.", "Mean", "Max."))
 
     seed = 0x12345678
-    w_nr = r_nr = 1000000
+    w_nr = r_nr = 750000
     buf = generate_random_buffer(w_nr, seed)
 
     start = timer()

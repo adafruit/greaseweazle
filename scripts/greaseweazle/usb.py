@@ -495,6 +495,7 @@ class Unit:
     ## Command Greaseweazle to sink given data buffer.
     def sink_bytes(self, dat, seed):
         try:
+            logging.debug("Sinking %d bytes" % len(dat))
             self._send_cmd(struct.pack("<2BII", Cmd.SinkBytes, 10,
                                        len(dat), seed))
         except CmdError as error:
@@ -502,6 +503,7 @@ class Unit:
                 raise
             # Firmware v0.28 and earlier
             self._send_cmd(struct.pack("<2BI", Cmd.SinkBytes, 6, len(dat)))
+        logging.debug("Writing data")
         self.ser.write(dat)
         (ack,) = struct.unpack("B", self._ser_read(1))
         return ack
@@ -514,6 +516,7 @@ class Unit:
                                    GetInfo.BandwidthStats))
         min_bytes, min_usecs, max_bytes, max_usecs = struct.unpack(
             "<4I16x", self._ser_read(32))
+        logging.debug("Bandwidth stats: %d min_bytes in %d us, %d max_bytes in %d us" % (min_bytes, min_usecs, max_bytes, max_usecs))
         min_bw = (8 * min_bytes) / min_usecs
         max_bw = (8 * max_bytes) / max_usecs
         return min_bw, max_bw
