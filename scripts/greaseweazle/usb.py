@@ -194,6 +194,7 @@ class Unit:
         (self._select_delay, self._step_delay,
          self._seek_settle_delay, self._motor_delay,
          self._watchdog_delay) = struct.unpack("<5H", self._ser_read(10))
+        
         logging.debug("Select delay %d us, step delay %d us, settle delay %d ms, motor delay %d ms, watchdog delay %d ms" %
                       (self._select_delay, self._step_delay,
                        self._seek_settle_delay, self._motor_delay,
@@ -396,6 +397,7 @@ class Unit:
     ## _read_track:
     ## Private helper which issues command requests to Greaseweazle.
     def _read_track(self, revs, ticks):
+        
         # Request and read all flux timings for this track.
         dat = bytearray()
         self._send_cmd(struct.pack("<2BIH", Cmd.ReadFlux, 8,
@@ -405,6 +407,7 @@ class Unit:
             dat += self.ser.read(self.ser.in_waiting)
             if dat[-1] == 0:
                 break
+        
         logging.debug("Read %d flux total transitions" % (len(dat)-1))
         # Check flux status. An exception is raised if there was an error.
         self._send_cmd(struct.pack("2B", Cmd.GetFluxStatus, 2))
@@ -429,6 +432,7 @@ class Unit:
             else:
                 # Success!
                 break
+        
         logging.debug("Read the track")
         try:
             # Decode the flux list and read the index-times list.
