@@ -66,11 +66,11 @@ actions = [ 'info',
             'bandwidth' ]
 argv = sys.argv
 
-logging.basicConfig(level=logging.DEBUG)
-
 def usage():
-    print("Usage: %s [--time] [action] [-h] ..." % (argv[0]))
+    print("Usage: %s [--time] [--bt] [--debug] [action] [-h] ..." % (argv[0]))
     print("  --time      Print elapsed time after action is executed")
+    print("  --bt        Print Python backtrace on error")
+    print("  --debug     Print detailed debug logging output")
     print("  -h, --help  Show help message for specified action")
     print("Actions:")
     for a in actions:
@@ -79,6 +79,7 @@ def usage():
     sys.exit(1)
 
 backtrace = False
+debugoutput = False
 start_time = None
 
 while len(argv) > 1 and argv[1].startswith('--'):
@@ -86,12 +87,17 @@ while len(argv) > 1 and argv[1].startswith('--'):
         backtrace = True
     elif argv[1] == '--time':
         start_time = time.time()
+    elif argv[1] == '--debug':
+        debugoutput = True
     else:
         usage()
     argv = [argv[0]] + argv[2:]
 
 if len(argv) < 2 or argv[1] not in actions:
     usage()
+
+if debugoutput:
+    logging.basicConfig(level=logging.DEBUG)
 
 mod = importlib.import_module('greaseweazle.tools.' + argv[1])
 main = mod.__dict__['main']

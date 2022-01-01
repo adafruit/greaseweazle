@@ -310,6 +310,7 @@ class Unit:
     ## _decode_flux:
     ## Decode the Greaseweazle data stream into a list of flux samples.
     def _decode_flux(self, dat):
+        logging.debug("DECODING FLUX")
         flux, index = [], []
         assert dat[-1] == 0
         dat_i = it.islice(dat, 0, len(dat)-1)
@@ -328,6 +329,7 @@ class Unit:
                     if opcode == FluxOp.Index:
                         val = _read_28bit()
                         index.append(ticks_since_index + ticks + val)
+                        logging.debug("Found indexOp value %d, ticks index %d" % (val, ticks_since_index + ticks + val))
                         ticks_since_index = -(ticks + val)
                     elif opcode == FluxOp.Space:
                         ticks += _read_28bit()
@@ -394,17 +396,16 @@ class Unit:
     ## _read_track:
     ## Private helper which issues command requests to Greaseweazle.
     def _read_track(self, revs, ticks):
-
         # Request and read all flux timings for this track.
         dat = bytearray()
         self._send_cmd(struct.pack("<2BIH", Cmd.ReadFlux, 8,
                                    ticks, revs+1))
         while True:
-            dat += self._ser_read(1)
-            dat += self._ser_read(self.ser.in_waiting)
+            dat += self.ser.read(1)
+            dat += self.ser.read(self.ser.in_waiting)
             if dat[-1] == 0:
                 break
-
+        logging.debug("Read %d flux total transitions" % (len(dat)-1))
         # Check flux status. An exception is raised if there was an error.
         self._send_cmd(struct.pack("2B", Cmd.GetFluxStatus, 2))
 
@@ -428,11 +429,13 @@ class Unit:
             else:
                 # Success!
                 break
-
+        logging.debug("Read the track")
         try:
             # Decode the flux list and read the index-times list.
             flux_list, index_list = optimised.decode_flux(dat)
+            logging.debug("Optimized decoding with %s" % optimised)
         except AttributeError:
+            logging.debug("Slower decoding")
             flux_list, index_list = self._decode_flux(dat)
 
         # Success: Return the requested full index-to-index revolutions.
@@ -481,13 +484,13 @@ class Unit:
     def source_bytes(self, nr, seed):
         try:
             self._send_cmd(struct.pack("<2B2I", Cmd.SourceBytes, 10, nr, seed))
-            dat = self._ser_read(nr)
+            dat = self.ser.read(nr) # DONT debug here
         except CmdError as error:
             if error.code != Ack.BadCommand:
                 raise
             # Firmware v0.28 and earlier
             self._send_cmd(struct.pack("<2BI", Cmd.SourceBytes, 6, nr))
-            self._ser_read(nr)
+            self.ser.read(nr) # DONT debug here
             dat = None
         return dat
 
