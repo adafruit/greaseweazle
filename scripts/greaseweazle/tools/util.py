@@ -224,8 +224,8 @@ def score_port(x, old_port=None):
     elif x.vid == 0x1209 and x.pid == 0x0001:
         # Our old shared Test PID. It's not guaranteed to be us.
         score = 10
-    elif x.vid == 0x239A:
-        # Something from adafruit!
+    elif x.vid in (0x2E8A, 0x239A):
+        # Something from adafruit or raspberry pi
         score = 5
     if score > 0 and valid_ser_id(x.serial_number):
         # A valid serial id is a good sign unless this is a reopen, and
@@ -249,8 +249,8 @@ def find_port(old_port=None):
     best_score, best_port = 0, None
     logging.debug("Found these serial ports:")
     for x in serial.tools.list_ports.comports():
-        logging.debug(x)
         score = score_port(x, old_port)
+        logging.debug("%s (%04X / %04X) with score of %d" % (x, x.vid, x.pid, score))
         if score > best_score:
             best_score, best_port = score, x
     if best_port:
