@@ -11,6 +11,7 @@ description = "Read a disk to the specified image file."
 
 import sys
 import importlib
+import logging
 
 from greaseweazle.tools import util
 from greaseweazle import error
@@ -98,14 +99,18 @@ def read_to_image(usb, args, image, decoder=None):
 
     for t in args.tracks:
         cyl, head = t.cyl, t.head
+        logging.debug("SEEK %d %d" % (cyl, head))
         usb.seek(t.physical_cyl, t.physical_head)
+        logging.debug("READ WITH RETRY")
         dat = read_with_retry(usb, args, cyl, head, decoder)
         s = "T%u.%u: %s" % (cyl, head, dat.summary_string())
         if hasattr(dat, 'nr_missing') and dat.nr_missing() != 0:
             s += " - Giving up"
         print(s)
         summary[cyl,head] = dat
+        logging.debug("EMIT")
         image.emit_track(cyl, head, dat)
+        logging.debug("DONE")
 
     if decoder is not None:
         print_summary(args, summary)

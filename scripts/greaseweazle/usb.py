@@ -166,14 +166,16 @@ class Unit:
         self.reset()
         # Copy firmware info to instance variables (see above for definitions).
         self._send_cmd(struct.pack("3B", Cmd.GetInfo, 3, GetInfo.Firmware))
-        x = struct.unpack("<4BI3B21x", self.ser.read(32))
+        x = struct.unpack("<4BI3B21x", self._ser_read(32))
         (self.major, self.minor, is_main_firmware,
          self.max_cmd, self.sample_freq, self.hw_model,
          self.hw_submodel, self.usb_speed) = x
         self.version = (self.major, self.minor)
+        logging.debug("Found firmware version: %d.%d" % self.version)
         # Old firmware doesn't report HW type but runs on STM32F1 only.
         if self.hw_model == 0:
             self.hw_model = 1
+        logging.debug("Found hardware model: %d.%d" % (self.hw_model, self.hw_submodel))
         # Check whether firmware is in update mode: limited command set if so.
         self.update_mode = (is_main_firmware == 0)
         if self.update_mode:
@@ -184,13 +186,19 @@ class Unit:
         # We can use only the GetInfo command if the firmware is out of date.
         self.update_needed = (self.version < EARLIEST_SUPPORTED_FIRMWARE)
         if self.update_needed:
+            logging.debug("Update required")
             return
+        logging.debug("Sample rate %d Hz, USB speed %d" % (self.sample_freq, self.usb_speed))
         # Initialise the delay properties with current firmware values.
         self._send_cmd(struct.pack("4B", Cmd.GetParams, 4, Params.Delays, 10))
         (self._select_delay, self._step_delay,
          self._seek_settle_delay, self._motor_delay,
-         self._watchdog_delay) = struct.unpack("<5H", self.ser.read(10))
-
+         self._watchdog_delay) = struct.unpack("<5H", self._ser_read(10))
+        
+        logging.debug("Select delay %d us, step delay %d us, settle delay %d ms, motor delay %d ms, watchdog delay %d ms" %
+                      (self._select_delay, self._step_delay,
+                       self._seek_settle_delay, self._motor_delay,
+                       self._watchdog_delay))
 
     ## reset:
     ## Resets communications with Greaseweazle.
@@ -206,8 +214,9 @@ class Unit:
     ## _ser_read:
     ## A light wrapper that will make it easier to debug serial reads
     def _ser_read(self, n):
+        logging.debug("Serial read (%d bytes):" % n)
         reply = self.ser.read(n)
-        logging.debug("Serial read: %s " % [hex(x) for x in reply])
+        logging.debug([hex(x) for x in reply])
         return reply
 
     ## _send_cmd:
@@ -246,7 +255,7 @@ class Unit:
     ## Get a pin level.
     def get_pin(self, pin):
         self._send_cmd(struct.pack("3B", Cmd.GetPin, 3, pin))
-        v, = struct.unpack("B", self.ser.read(1))
+        v, = struct.unpack("B", self._ser_read(1))
         return v
 
 
@@ -285,7 +294,7 @@ class Unit:
     def update_firmware(self, dat):
         self._send_cmd(struct.pack("<2BI", Cmd.Update, 6, len(dat)))
         self.ser.write(dat)
-        (ack,) = struct.unpack("B", self.ser.read(1))
+        (ack,) = struct.unpack("B", self._ser_read(1))
         return ack
 
 
@@ -295,13 +304,14 @@ class Unit:
         self._send_cmd(struct.pack("<2B2I", Cmd.Update, 10,
                                    len(dat), 0xdeafbee3))
         self.ser.write(dat)
-        (ack,) = struct.unpack("B", self.ser.read(1))
+        (ack,) = struct.unpack("B", self._ser_read(1))
         return ack
 
 
     ## _decode_flux:
     ## Decode the Greaseweazle data stream into a list of flux samples.
     def _decode_flux(self, dat):
+        logging.debug("DECODING FLUX")
         flux, index = [], []
         assert dat[-1] == 0
         dat_i = it.islice(dat, 0, len(dat)-1)
@@ -320,6 +330,7 @@ class Unit:
                     if opcode == FluxOp.Index:
                         val = _read_28bit()
                         index.append(ticks_since_index + ticks + val)
+                        logging.debug("Found indexOp value %d, ticks index %d" % (val, ticks_since_index + ticks + val))
                         ticks_since_index = -(ticks + val)
                     elif opcode == FluxOp.Space:
                         ticks += _read_28bit()
@@ -397,6 +408,7 @@ class Unit:
             if dat[-1] == 0:
                 break
 
+        logging.debug("Read %d flux total transitions" % (len(dat)-1))
         # Check flux status. An exception is raised if there was an error.
         self._send_cmd(struct.pack("2B", Cmd.GetFluxStatus, 2))
 
@@ -421,10 +433,13 @@ class Unit:
                 # Success!
                 break
 
+        logging.debug("Read the track")
         try:
             # Decode the flux list and read the index-times list.
             flux_list, index_list = optimised.decode_flux(dat)
+            logging.debug("Optimized decoding with %s" % optimised)
         except AttributeError:
+            logging.debug("Slower decoding")
             flux_list, index_list = self._decode_flux(dat)
 
         # Success: Return the requested full index-to-index revolutions.
@@ -447,7 +462,7 @@ class Unit:
                                            int(cue_at_index),
                                            int(terminate_at_index)))
                 self.ser.write(dat)
-                self.ser.read(1) # Sync with Greaseweazle
+                self._ser_read(1) # Sync with Greaseweazle
                 self._send_cmd(struct.pack("2B", Cmd.GetFluxStatus, 2))
             except CmdError as error:
                 # An error occurred. We may retry on transient underflows.
@@ -464,7 +479,7 @@ class Unit:
     ## Erase the current track via Greaseweazle.
     def erase_track(self, ticks):
         self._send_cmd(struct.pack("<2BI", Cmd.EraseFlux, 6, int(ticks)))
-        self.ser.read(1) # Sync with Greaseweazle
+        self._ser_read(1) # Sync with Greaseweazle
         self._send_cmd(struct.pack("2B", Cmd.GetFluxStatus, 2))
 
 
@@ -473,13 +488,13 @@ class Unit:
     def source_bytes(self, nr, seed):
         try:
             self._send_cmd(struct.pack("<2B2I", Cmd.SourceBytes, 10, nr, seed))
-            dat = self.ser.read(nr)
+            dat = self.ser.read(nr) # DONT debug here
         except CmdError as error:
             if error.code != Ack.BadCommand:
                 raise
             # Firmware v0.28 and earlier
             self._send_cmd(struct.pack("<2BI", Cmd.SourceBytes, 6, nr))
-            self.ser.read(nr)
+            self.ser.read(nr) # DONT debug here
             dat = None
         return dat
 
@@ -487,6 +502,7 @@ class Unit:
     ## Command Greaseweazle to sink given data buffer.
     def sink_bytes(self, dat, seed):
         try:
+            logging.debug("Sinking %d bytes" % len(dat))
             self._send_cmd(struct.pack("<2BII", Cmd.SinkBytes, 10,
                                        len(dat), seed))
         except CmdError as error:
@@ -494,8 +510,9 @@ class Unit:
                 raise
             # Firmware v0.28 and earlier
             self._send_cmd(struct.pack("<2BI", Cmd.SinkBytes, 6, len(dat)))
+        logging.debug("Writing data")
         self.ser.write(dat)
-        (ack,) = struct.unpack("B", self.ser.read(1))
+        (ack,) = struct.unpack("B", self._ser_read(1))
         return ack
 
 
@@ -505,7 +522,8 @@ class Unit:
         self._send_cmd(struct.pack("3B", Cmd.GetInfo, 3,
                                    GetInfo.BandwidthStats))
         min_bytes, min_usecs, max_bytes, max_usecs = struct.unpack(
-            "<4I16x", self.ser.read(32))
+            "<4I16x", self._ser_read(32))
+        logging.debug("Bandwidth stats: %d min_bytes in %d us, %d max_bytes in %d us" % (min_bytes, min_usecs, max_bytes, max_usecs))
         min_bw = (8 * min_bytes) / min_usecs
         max_bw = (8 * max_bytes) / max_usecs
         return min_bw, max_bw
