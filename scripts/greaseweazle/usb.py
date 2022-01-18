@@ -453,7 +453,7 @@ class Unit:
 
         # Create encoded data stream.
         dat = self._encode_flux(flux_list)
-        
+        print(len(flux_list), len(dat))
         retry = 0
         while True:
             try:
