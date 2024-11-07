@@ -30,7 +30,7 @@ jobs:
       run: make dist
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: greaseweazle-tools.ci.${{ steps.vars.outputs.ref }}
         path: greaseweazle-tools-${{ steps.vars.outputs.ref }}.zip
@@ -61,7 +61,7 @@ jobs:
       run: make windist
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: greaseweazle-tools.ci.${{ steps.vars.outputs.ref }}
         path: greaseweazle-tools-${{ steps.vars.outputs.ref }}-win.zip
@@ -79,7 +79,7 @@ jobs:
         echo "::set-output name=ref::$(echo ${{ github.ref }} | sed -e's#.*/##')"
 
     - name: Download artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: greaseweazle-tools.ci.${{ steps.vars.outputs.ref }}
 
